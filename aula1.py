@@ -2,16 +2,25 @@ import os
 import time
 from google import genai
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
 def get_gemini_client():
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    api_key_gemini = os.getenv("GEMINI_API_KEY")
+    if not api_key_gemini:
         raise ValueError("GEMINI_API_KEY not found in .env file")
     
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key_gemini)
     return client
+
+def get_groq_client():
+    api_key_groq = os.getenv("GROQ_API_KEY")
+    if not api_key_groq:
+        raise ValueError("GROQ_API_KEY not found in .env file")
+    
+    client = Groq(api_key=api_key_groq)
+    return client   
 
 def ask_gemini(client, question, model_name="gemma-3-27b-it"):
     try:
@@ -22,6 +31,20 @@ def ask_gemini(client, question, model_name="gemma-3-27b-it"):
         return response.text   
     except Exception as e:
         print(f"Error during Gemini call: {e}")
+        return None
+
+def ask_groq(client, prompt, model="openai/gpt-oss-120b"):
+    try:
+        print(f"Calling Groq with model: {model}")
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=4000,
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        print(f"Error during Groq call: {e}")
         return None
 
 def create_chat_gemini(client, model_name="gemma-3-27b-it"):
@@ -115,7 +138,8 @@ def execute_batch_email_generation(client, count=20):
     return emails
 
 if __name__ == "__main__":
-    client = get_gemini_client()
+    client_gemini = get_gemini_client()
+    client_groq = get_groq_client()
 # Different models with less quota
     # model_name = "gemini-flash-latest"
     # model_name = "gemini-3-flash-preview"    
@@ -123,19 +147,22 @@ if __name__ == "__main__":
 
     # Example 1: Simple Question
     # question = "What's the color of the sky?"
-    # answer = ask_gemini(client, question)
+    # answer = ask_gemini(client_gemini, question)
     # print(f"Gemini Answer: {answer}")
 
     # Example 2: Chat Session
     # Get chat history
-    # history = chat_bot(client)
+    # history = chat_bot(client_gemini)
     # print(f"Chat history: {history}")
 
     # Example 3: Email Summarization
     # Traditional way (1 by 1)
-    # answer = execute_email_summarization(client)
+    # answer = execute_email_summarization(client_gemini)
     
     # New efficient batch way
-    emails = execute_batch_email_generation(client, 5)
-    print(emails)
-    summarize_emails(client, emails)
+    # emails = execute_batch_email_generation(client_gemini, 5)
+    # print(emails)
+    # summarize_emails(client_gemini, emails)
+
+    answer = ask_groq(client_groq,"What's the difference between electron and proton?")
+    print(answer)
