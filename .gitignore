@@ -5,6 +5,8 @@ qa_pairs.csv
 results.csv
 emails.txt
 summarized_emails.txt
+products.csv
+reviews_with_feelings.csv
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python

@@ -6,6 +6,8 @@ from groq import Groq
 from pathlib import Path
 import pandas as pd
 from typing import List, Dict, Sequence, Any
+import mapping
+import re
 
 BASE_DIR = Path(__file__).parent
 
@@ -28,6 +30,7 @@ def get_groq_client():
     return client   
 
 def ask_gemini(client, question, model_name="gemma-3-27b-it"):
+    print("Calling Gemini with model:", model_name)
     try:
         response = client.models.generate_content(
             model=model_name,
@@ -159,7 +162,7 @@ def read_txt_files(file_name):
         return f.read().split("\n")        
 
 def read_csv(file_name):
-    return pd.read_csv(BASE_DIR / file_name)     
+    return pd.read_csv(file_name)     
 
 def save_to_csv(file_name, questions=None, answers=None, data=None):
     """
@@ -187,7 +190,7 @@ def save_to_csv(file_name, questions=None, answers=None, data=None):
     df.to_csv(BASE_DIR / file_name, index=False, sep=',', encoding='utf-8')
     print(f"Successfully saved to {file_name}")
 
-def generate_qa_pair_in_batch(client, count=10) -> Tuple[List[str], List[str], List[Dict[str, str]]]:
+def generate_qa_pair_in_batch(client, count=10) -> tuple[List[str], List[str], List[Dict[str, str]]]:
     print(f"Generating {count} Q&A pairs in a single batch...")
     
     q_delimiter = "===QUESTION_SEP==="
@@ -231,6 +234,96 @@ def generate_qa_pair_in_batch(client, count=10) -> Tuple[List[str], List[str], L
     print(f"Successfully generated {len(questions)} Q&A pairs (lists + dict list).")
     return questions, answers, dict_q_a
 
+def df_filter_by(df: pd.DataFrame, query_string: str) -> pd.DataFrame:
+    """Filters a DataFrame using a query string.
+    
+    Args:
+        df (pd.DataFrame): The DataFrame to filter.
+        query_string (str): The query expression to apply.
+    
+    Returns:
+        pd.DataFrame: The filtered DataFrame.
+    """
+    try:
+        return df.query(query_string)
+    except Exception as e:
+        print(f"Error during query '{query_string}': {e}")
+        return df
+
+def translate_to_english(df: pd.DataFrame) -> pd.DataFrame:
+    """Translates the DataFrame to English using mapping."""
+    df_final = (
+        df
+        .rename(index={"Eletrônicos": "Electronics", "Móveis": "Furniture", "Roupas": "Clothing", "Eletrodomésticos": "Appliances"})
+        .reset_index()
+        .rename(columns={
+            "Categoria do Produto": "Category",
+            "Nome do Produto": "Name",
+            "Preço do produto": "Price",
+            "Quantidade do produto que foram vendidas": "Quantity",
+            "Avaliação do Produto": "Rating"
+        })
+    )
+
+    mask = df_final["Name"].isin(mapping.mapper.keys())
+    df_final.loc[mask, "Name"] = df_final.loc[mask, "Name"].map(mapping.mapper)
+    return df_final
+
+def ai_evalution_of_feelings(df: pd.DataFrame, client) -> pd.DataFrame:
+    """Evaluates the feelings of the users based on the product reviews."""
+    
+    if df.empty:
+        print("Error: No data provided to ai_evalution_of_feelings.")
+        return df
+
+    try:
+        # 1. Provide a numbered list to the AI so it can track progress
+        reviews_numbered = ""
+        for i, review in enumerate(df["reviewText"], 1):
+            reviews_numbered += f"{i}. {review}\n"
+        
+        prompt = f"""You are a professional sentiment analyzer.
+        I will provide {len(df)} customer reviews. 
+        Your task is to classify each one as: positive, neutral, or negative.
+        Rules:
+        1. Return ONLY a numbered list of labels.
+        2. Do not include the original review or any introductory text.
+        3. Match the labels to the review numbers exactly.
+        Input Reviews:
+        {reviews_numbered}
+        Example Output:
+        1. positive
+        2. negative
+        ... and so on.
+        Output:"""
+        
+        result = None
+        # Check the type of the client to decide which method to call
+        if isinstance(client, genai.Client):
+            result = ask_gemini(client, prompt)
+        elif isinstance(client, Groq):
+            result = ask_groq(client, prompt)
+        else:
+            print("Error: Unknown client type.")
+            return df
+        if result:
+            pattern = re.compile(r"\d+\.\s*(positive|neutral|negative)", re.IGNORECASE)
+            feelings = pattern.findall(result)
+            
+            # Ensure the number of feelings matches the number of reviews
+            if len(feelings) == len(df):
+                df["feeling"] = feelings
+            else:
+                print(f"Warning: Received {len(feelings)} feelings for {len(df)} reviews. Mismatch occurred.")
+                print("Raw output from model:")
+                print(result)
+        
+        return df
+        
+    except Exception as e:
+        print(f"Error during evaluation of feelings: {e}")
+        return df    
+
 if __name__ == "__main__":
     client_gemini = get_gemini_client()
     client_groq = get_groq_client()
@@ -265,24 +358,72 @@ if __name__ == "__main__":
     # print(answer)
 
     # Example 5: CSV
-    df = read_csv("meu_csv.csv")
-    print(df.head())
-    print(df.tail())
+    # df = read_csv("meu_csv.csv")
+    # print(df.head())
+    # print(df.tail())
 
     # Example 6: Optimized Single-Prompt Generation and CSV save
-    questions, answers, dict_q_a = generate_qa_pair_in_batch(client_gemini, count=5)
-    save_txt_files(questions, "questions.txt")
-    save_txt_files(answers, "answers.txt")
-    if questions and answers:
-        save_to_csv("results.csv", questions=questions, answers=answers)
-        # Verify the save
-        df_new = pd.read_csv(BASE_DIR / "results.csv")
-        print("\nReviewing saved CSV (from lists):")
-        print(df_new.head())
+    # questions, answers, dict_q_a = generate_qa_pair_in_batch(client_gemini, count=5)
+    # save_txt_files(questions, "questions.txt")
+    # save_txt_files(answers, "answers.txt")
+    # if questions and answers:
+    #     save_to_csv("results.csv", questions=questions, answers=answers)
+    #     # Verify the save
+    #     df_new = pd.read_csv(BASE_DIR / "results.csv")
+    #     print("\nReviewing saved CSV (from lists):")
+    #     print(df_new.head())
         
-        # Example 7: Save Q&A pairs to CSV using the dictionary list
-        save_to_csv("qa_pairs.csv", data=dict_q_a)
-        # Verify the save
-        df_qa = pd.read_csv(BASE_DIR / "qa_pairs.csv")
-        print("\nReviewing saved Q&A pairs (from dict list):")
-        print(df_qa.head())
+    #     # Example 7: Save Q&A pairs to CSV using the dictionary list
+    #     save_to_csv("qa_pairs.csv", data=dict_q_a)
+    #     # Verify the save
+    #     df_qa = pd.read_csv(BASE_DIR / "qa_pairs.csv")
+    #     print("\nReviewing saved Q&A pairs (from dict list):")
+    #     print(df_qa.head())
+
+    # Example 8: Manipulating CSV
+    df = read_csv(BASE_DIR / "produtos.csv")
+    # Returns the number of rows and columns
+    print(df.shape)
+
+    # returns the category name and the number of times each value appears 
+    # print(df['Categoria do Produto'].value_counts())
+    # returns the number of unique values
+    # print(df['Categoria do Produto'].nunique())
+    # returns the unique values
+    # print(df['Categoria do Produto'].unique())
+    # returns the unique values as a set(dictionary)
+    # print(set(df['Categoria do Produto']))
+
+    # Filtering by
+    # filtered_df = df_filter_by(df, "`Categoria do Produto` == 'Eletrônicos'")
+    # print(filtered_df)
+    # filtered_df = df_filter_by(df, "`Avaliação do Produto` > 4.6")
+    # print(filtered_df)
+    # filtered_df = df_filter_by(df, "`Categoria do Produto` == 'Eletrônicos' and `Avaliação do Produto` > 4.6")
+    # print(filtered_df)
+
+    # ILOC
+    # print(df.iloc[0])
+    # print(df.iloc[:5])
+    # print(df.iloc[30:])
+    # print(df.iloc[-5:])
+
+    #LOC
+    # df_cat = df.set_index("Categoria do Produto")
+    # print(df_cat.loc["Eletrônicos"])
+    # print(df_cat.loc["Eletrônicos", ["Nome do Produto", "Preço do produto"]])
+    # print(df_cat.loc["Eletrônicos", ["Nome do Produto", "Preço do produto"]].values)
+    # print(df_cat.loc["Eletrônicos", ["Nome do Produto", "Preço do produto"]].values[0])
+    # print(df_cat.loc[["Eletrônicos", "Móveis"], ["Nome do Produto", "Preço do produto"]])
+    # mask = (df_cat.index.isin(["Eletrônicos", "Móveis"])) & (df_cat["Avaliação do Produto"] > 4.6)
+    # print(df_cat.loc[mask, ["Nome do Produto", "Avaliação do Produto"]])
+
+    # df_final = translate_to_english(df_cat)
+    # save_to_csv("products.csv", data=df_final)
+
+    # Example 9: CSV Manipulation, adding column and evaluating feelings of the users with AI
+    df_eval = read_csv(BASE_DIR / "reviews.csv")
+    df_eval_filtered = df_eval[0:][["reviewText"]]
+    df_eval_with_feelings = ai_evalution_of_feelings(df_eval_filtered, client_gemini)
+    df_eval["reviewFeeling"] = df_eval_with_feelings["feeling"]
+    save_to_csv("reviews_with_feelings.csv", data=df_eval)
