@@ -1,4 +1,11 @@
 .env
+answers.txt
+questions.txt
+qa_pairs.csv
+results.csv
+email.txt
+summarized_emails.txt
+
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 

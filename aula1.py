@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from pathlib import Path
 import pandas as pd
+from typing import List, Dict, Sequence, Any
 
 BASE_DIR = Path(__file__).parent
 
@@ -140,12 +141,95 @@ def execute_batch_email_generation(client, count=20):
     print(f"Successfully generated {len(emails)} emails.")
     return emails
 
-def save_emails(emails, file_name, clause):
+def save_txt_files(raw_data, file_name, separator="\n"):
+    if not raw_data:
+        print("No data to save.")
+        return
+    
+    if isinstance(raw_data, list):
+        content = separator.join(str(item).strip() for item in raw_data if item)
+    else:
+        content = str(raw_data).strip()
+    
     with open(BASE_DIR / file_name, "w", encoding="utf-8") as f:
-        f.write(clause.join(email.strip() for email in emails))
+        f.write(content + "\n" if content else "")
+
+def read_txt_files(file_name):
+    with open(BASE_DIR / file_name, "r", encoding="utf-8") as f:
+        return f.read().split("\n")        
 
 def read_csv(file_name):
-    return pd.read_csv(BASE_DIR / file_name)        
+    return pd.read_csv(BASE_DIR / file_name)     
+
+def save_to_csv(file_name, questions=None, answers=None, data=None):
+    """
+    Saves data to a CSV file. 
+    Accepts either separate 'questions' and 'answers' lists, 
+    or a 'data' object (like a list of dictionaries).
+    """
+    if data is not None:
+        df = pd.DataFrame(data)
+    elif questions is not None and answers is not None:
+        if len(questions) != len(answers):
+            print("Warning: Questions and answers lists have different lengths!")
+            min_len = min(len(questions), len(answers))
+            questions = questions[:min_len]
+            answers = answers[:min_len]
+        
+        df = pd.DataFrame({
+            'Question': questions,
+            'Answer': answers
+        })
+    else:
+        print("Error: No data provided to save_to_csv.")
+        return
+
+    df.to_csv(BASE_DIR / file_name, index=False, sep=',', encoding='utf-8')
+    print(f"Successfully saved to {file_name}")
+
+def generate_qa_pair_in_batch(client, count=10) -> Tuple[List[str], List[str], List[Dict[str, str]]]:
+    print(f"Generating {count} Q&A pairs in a single batch...")
+    
+    q_delimiter = "===QUESTION_SEP==="
+    pair_delimiter = "===PAIR_SEP==="
+    
+    prompt = f"""Generate {count} questions and their respective answers.
+    Follow these rules:
+    - For each pair, provide the question first, then the answer.
+    - Separate the question and answer with '{q_delimiter}'.
+    - Separate each Q&A pair with '{pair_delimiter}'.
+    - The questions should be clear and concise.
+    - The questions should be challenging and thought-provoking.
+    - The questions should be related to the topic.
+    - The questions should be open-ended.
+    - The questions should be specific and focused.
+    - The answers should be clear and concise while providing a complete and accurate response.
+    - Do not include any preamble, introduction, or conclusion text.
+    
+    Format example:
+    Question text {q_delimiter} Answer text {pair_delimiter} Next question {q_delimiter} Next answer ...
+    """
+    
+    result = ask_gemini(client, prompt)
+    
+    if not result:
+        print("Failed to generate batch Q&A.")
+        return [], []
+    
+    questions = []
+    answers = []
+    dict_q_a = []
+    
+    pairs = [pair.strip() for pair in result.split(pair_delimiter) if pair.strip()]
+    for pair in pairs:
+        if q_delimiter in pair:
+            parts = pair.split(q_delimiter)
+            questions.append(parts[0].strip())
+            answers.append(parts[1].strip())
+            dict_q_a.append({"Question": parts[0].strip(), "Answer": parts[1].strip()})
+            
+    print(f"Successfully generated {len(questions)} Q&A pairs (lists + dict list).")
+    return questions, answers, dict_q_a
 
 if __name__ == "__main__":
     client_gemini = get_gemini_client()
@@ -183,3 +267,22 @@ if __name__ == "__main__":
     # Example 5: CSV
     df = read_csv("meu_csv.csv")
     print(df.head())
+    print(df.tail())
+
+    # Example 6: Optimized Single-Prompt Generation and CSV save
+    questions, answers, dict_q_a = generate_qa_pair_in_batch(client_gemini, count=5)
+    save_txt_files(questions, "questions.txt")
+    save_txt_files(answers, "answers.txt")
+    if questions and answers:
+        save_to_csv("results.csv", questions=questions, answers=answers)
+        # Verify the save
+        df_new = pd.read_csv(BASE_DIR / "results.csv")
+        print("\nReviewing saved CSV (from lists):")
+        print(df_new.head())
+        
+        # Example 7: Save Q&A pairs to CSV using the dictionary list
+        save_to_csv("qa_pairs.csv", data=dict_q_a)
+        # Verify the save
+        df_qa = pd.read_csv(BASE_DIR / "qa_pairs.csv")
+        print("\nReviewing saved Q&A pairs (from dict list):")
+        print(df_qa.head())
