@@ -1,5 +1,0 @@
-Email 1 Summary: This email announces the approval of Project Phoenix design mockups and outlines the next steps: moving into development with Sarah leading front-end, David leading back-end, and a request for assets by Friday with a stand-up meeting on Monday.
-Email 2 Summary: Sarah confirms she's ready to start front-end work on Project Phoenix and requests a quick chat about user authentication.
-Email 3 Summary: Mark is asking David for his opinion on whether to use integer IDs or string values for roles in the 'user_roles' table of the Project Phoenix database schema.
-Email 4 Summary: David confirms agreement with Mark to use integer IDs for the 'user_roles' database schema and states he's updated the documentation.
-Email 5 Summary: This email is a reminder about the Project Phoenix daily stand-up meeting tomorrow at 10 AM, outlining the agenda of progress updates, blockers, and priorities.

@@ -3,7 +3,7 @@ answers.txt
 questions.txt
 qa_pairs.csv
 results.csv
-email.txt
+emails.txt
 summarized_emails.txt
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
