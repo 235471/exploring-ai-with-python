@@ -3,6 +3,10 @@ import time
 from google import genai
 from dotenv import load_dotenv
 from groq import Groq
+from pathlib import Path
+import pandas as pd
+
+BASE_DIR = Path(__file__).parent
 
 load_dotenv()
 
@@ -74,7 +78,8 @@ def chat_bot(client):
         print(f"Error in chat_bot: {e}")
         return []
 
-def summarize_emails(client, email_list):  
+def summarize_emails(client, email_list):
+    summary = []  
     if not email_list:
         print("No emails to summarize.")
         return
@@ -89,16 +94,14 @@ def summarize_emails(client, email_list):
             response = ask_gemini(client, prompt)
             
             if response:
-                print(f"Email {i+1} Summary: {response.strip()}")
+                summary.append(f"Email {i+1} Summary: {response.strip()}")
             else:
                 print("Failed to get summary for this email.")
-            
-            print("-" * 60)
             # Wait a bit to avoid hitting free tier rate limits
             time.sleep(2)
     except Exception as e:
         print(f"Error in summarize_emails: {e}")
-
+    return summary
 def execute_individual_email_generation(client, count=20):
     answer = []
     print("Generating simulated emails...")
@@ -137,6 +140,13 @@ def execute_batch_email_generation(client, count=20):
     print(f"Successfully generated {len(emails)} emails.")
     return emails
 
+def save_emails(emails, file_name, clause):
+    with open(BASE_DIR / file_name, "w", encoding="utf-8") as f:
+        f.write(clause.join(email.strip() for email in emails))
+
+def read_csv(file_name):
+    return pd.read_csv(BASE_DIR / file_name)        
+
 if __name__ == "__main__":
     client_gemini = get_gemini_client()
     client_groq = get_groq_client()
@@ -161,8 +171,15 @@ if __name__ == "__main__":
     
     # New efficient batch way
     # emails = execute_batch_email_generation(client_gemini, 5)
-    # print(emails)
-    # summarize_emails(client_gemini, emails)
+    # Save emails and summaries in .txt files
+    # save_emails(emails, "emails.txt", "\n\n--- EMAIL ---\n\n")
+    # summarized_emails =summarize_emails(client_gemini, emails)
+    # save_emails(summarized_emails, "summarized_emails.txt", "\n")
 
-    answer = ask_groq(client_groq,"What's the difference between electron and proton?")
-    print(answer)
+    # Example 4: Groq
+    # answer = ask_groq(client_groq,"What's the difference between electron and proton?")
+    # print(answer)
+
+    # Example 5: CSV
+    df = read_csv("meu_csv.csv")
+    print(df.head())

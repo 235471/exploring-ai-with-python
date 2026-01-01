@@ -1,0 +1,71 @@
+Subject: Project Phoenix - Update & Next Steps
+
+Hi Team,
+
+Just a quick update on Project Phoenix. The initial design mockups have been approved by stakeholders, which is fantastic news! We're now moving into the development phase. 
+
+Sarah will be leading the front-end work, and David will focus on the back-end. Please ensure all relevant assets are in the shared drive by EOD Friday. We'll have a brief stand-up meeting Monday at 10 AM to discuss any roadblocks.
+
+Let me know if you foresee any issues.
+
+Thanks,
+Mark
+
+--- EMAIL ---
+
+Subject: Re: Project Phoenix - Update & Next Steps
+
+Hi Mark,
+
+Thanks for the update! Just confirming I've got everything I need to start on the front-end. The mockups look great, and I'm excited to get started. 
+
+I might need a quick clarification on the user authentication flow – could we chat briefly about that tomorrow?
+
+Best,
+Sarah
+
+--- EMAIL ---
+
+Subject: Quick Question - Database Schema
+
+Hi David,
+
+Hope you're having a good week.
+
+Regarding Project Phoenix, I was looking at the proposed database schema and had a quick question about the 'user_roles' table. Specifically, should we be using an integer ID for roles or a string value? I'm leaning towards integer for performance reasons, but wanted to get your thoughts.
+
+Let me know when you have a moment.
+
+Thanks,
+Mark
+
+--- EMAIL ---
+
+Subject: Re: Quick Question - Database Schema
+
+Hi Mark,
+
+Good point. I agree, integer IDs for 'user_roles' will be significantly more efficient, especially as the user base grows. Let's definitely go with that. I've updated the schema document accordingly.
+
+Let me know if anything else comes up.
+
+Cheers,
+David
+
+--- EMAIL ---
+
+Subject: Project Phoenix - Stand-up Reminder & Agenda
+
+Hi Team,
+
+Just a reminder about our Project Phoenix stand-up meeting tomorrow at 10 AM. 
+
+Agenda:
+* Quick progress updates from Sarah & David
+* Discuss any blockers or challenges
+* Review priorities for the next 2 days
+
+Please come prepared to share a brief update on your progress.
+
+See you then,
+Mark
