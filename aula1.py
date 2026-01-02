@@ -8,6 +8,8 @@ import pandas as pd
 from typing import List, Dict, Sequence, Any
 import mapping
 import re
+import json
+from collections import Counter
 
 BASE_DIR = Path(__file__).parent
 
@@ -158,8 +160,21 @@ def save_txt_files(raw_data, file_name, separator="\n"):
         f.write(content + "\n" if content else "")
 
 def read_txt_files(file_name):
-    with open(BASE_DIR / file_name, "r", encoding="utf-8") as f:
-        return f.read().split("\n")        
+    encodings = ['utf-8', 'latin-1', 'windows-1252', 'iso-8859-1']    
+    content = None
+    
+    for encoding in encodings:
+        try:
+            with open(BASE_DIR / file_name, "r", encoding=encoding) as f:
+                content = f.read()
+                break
+        except UnicodeDecodeError:
+            continue
+    
+    if not content:
+        raise ValueError("Failed to decode file with any of the specified encodings.")
+    
+    return content.split("\n")
 
 def read_csv(file_name):
     return pd.read_csv(file_name)     
@@ -337,6 +352,63 @@ def ai_identify_negative_categories(df: pd.DataFrame, client) -> pd.DataFrame:
     """Identifies general categories for negative reviews."""
     return ai_analyze_reviews(df, client, "categories")    
 
+def execute_challenge(client):
+    challenge_list = read_txt_files("challenge.txt")
+    size = len(challenge_list)
+    challenge_list = "\n".join(challenge_list)
+    json_output_example = """
+    [
+        {
+            "username": "username",
+            "original review": "original review",
+            "translated review": "translated review",
+            "feeling": "positive"
+        }
+    ]
+    """
+    prompt = f"""
+        Each line has 3 fields userId, username and review.
+        They are separated by the delimiter $.
+        It has '{size} lines to be processed.
+        The current list of reviews is:
+        {challenge_list}
+        Extract the fields username, original review. Then add a new field translated review to english, analyze the review and add a column feeling of the review which you need to classify as[positive, negative, neutral].
+        Return the result in json format and no other text.
+        Example:
+        {json_output_example}
+    """
+    response = ask_gemini(client, prompt)    
+    
+    if not response:
+        print("Failed to get a response from the AI.")
+        return None, None
+
+    # Clean the response in case it contains markdown code blocks
+    if response.strip().startswith("```"):
+        response = re.sub(r"^```json\n|```$", "", response, flags=re.MULTILINE).strip()
+    
+    try:
+        dict_output = json.loads(response)
+        summary, formatted_str = format_output(dict_output)
+
+        return summary, formatted_str
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse JSON: {e}")
+        print("Raw response was:")
+        print(response)
+        return None, None
+
+def format_output(dict_output):
+
+    counts = Counter(item["feeling"] for item in dict_output)
+
+    string_raw = "===SEP===".join(
+         str(item.get("username", "")) + str(item.get("original review", "")) + str(item.get("translated review", "")) + str(item.get("feeling", ""))
+        for item in dict_output
+    )
+
+    return dict(counts), string_raw
+
 if __name__ == "__main__":
     client_gemini = get_gemini_client()
     client_groq = get_groq_client()
@@ -442,9 +514,15 @@ if __name__ == "__main__":
     # save_to_csv("reviews_with_feelings.csv", data=df_eval)
 
     # Example 10: CSV Manipulation, evaluate and create categories of the complaints when the review is negative
-    df_complaints = read_csv(BASE_DIR / "reviews_with_feelings.csv")
-    df_negative_reviews = df_complaints[df_complaints["reviewFeeling"] == "negative"][["reviewText"]].copy()
-    df_negative_reviews_with_categories = ai_identify_negative_categories(df_negative_reviews, client_groq)
-    print("\nNegative reviews with identified categories:")
-    print(df_negative_reviews_with_categories)
+    # df_complaints = read_csv(BASE_DIR / "reviews_with_feelings.csv")
+    # df_negative_reviews = df_complaints[df_complaints["reviewFeeling"] == "negative"][["reviewText"]].copy()
+    # df_negative_reviews_with_categories = ai_identify_negative_categories(df_negative_reviews, client_groq)
+    # print("\nNegative reviews with identified categories:")
+    # print(df_negative_reviews_with_categories)
     
+    summary, formatted_str = execute_challenge(client_gemini)
+
+    print("\n--- Challenge Result ---")
+    print(f"Counts: {summary}")
+    print("\nFormatted Data:")
+    print(formatted_str)
