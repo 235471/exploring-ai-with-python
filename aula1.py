@@ -41,7 +41,7 @@ def ask_gemini(client, question, model_name="gemma-3-27b-it"):
         print(f"Error during Gemini call: {e}")
         return None
 
-def ask_groq(client, prompt, model="openai/gpt-oss-120b"):
+def ask_groq(client, prompt, model="llama-3.3-70b-versatile"):
     try:
         print(f"Calling Groq with model: {model}")
         completion = client.chat.completions.create(
@@ -294,6 +294,7 @@ def ai_evalution_of_feelings(df: pd.DataFrame, client) -> pd.DataFrame:
         Example Output:
         1. positive
         2. negative
+        3. neutral
         ... and so on.
         Output:"""
         
@@ -315,6 +316,59 @@ def ai_evalution_of_feelings(df: pd.DataFrame, client) -> pd.DataFrame:
                 df["feeling"] = feelings
             else:
                 print(f"Warning: Received {len(feelings)} feelings for {len(df)} reviews. Mismatch occurred.")
+                print("Raw output from model:")
+                print(result)
+        
+        return df
+        
+    except Exception as e:
+        print(f"Error during evaluation of feelings: {e}")
+        return df    
+
+def ai_identify_negative_categories(df: pd.DataFrame, client) -> pd.DataFrame:
+    """Identifying general categories for negative reviews based on the product reviews."""
+    if df.empty:
+        print("Error: No data provided to ai_identify_negative_categories.")
+        return df
+
+    try:
+
+        reviews_numbered = ""
+        for i, review in enumerate(df["reviewText"], 1):
+            reviews_numbered += f"{i}. {review}\n"    
+        
+        prompt = f"""You are a professional sentiment analyzer.
+        I will provide {len(df)} negative customer reviews. 
+        You have to create general categories for those reviews when they differ.
+        Rules:
+        1. Return ONLY a numbered list of categories.
+        2. Do not include the original review or any introductory text.
+        3. Match the categories to the review numbers exactly.
+        Input Reviews:
+        {reviews_numbered}
+        Example Output:
+        1. category
+        2. category
+        ... and so on.
+        Output:"""
+        
+        result = None
+        # Check the type of the client to decide which method to call
+        if isinstance(client, genai.Client):
+            result = ask_gemini(client, prompt)
+        elif isinstance(client, Groq):
+            result = ask_groq(client, prompt)
+        else:
+            print("Error: Unknown client type.")
+            return df
+        if result:
+            pattern = re.compile(r"\d+\.\s*(.+)", re.IGNORECASE)
+            categories = pattern.findall(result)          
+            # Ensure the number of categories matches the number of reviews
+            if len(categories) == len(df):
+                df["category"] = categories
+            else:
+                print(f"Warning: Received {len(categories)} categories for {len(df)} reviews. Mismatch occurred.")
                 print("Raw output from model:")
                 print(result)
         
@@ -383,7 +437,7 @@ if __name__ == "__main__":
     # Example 8: Manipulating CSV
     df = read_csv(BASE_DIR / "produtos.csv")
     # Returns the number of rows and columns
-    print(df.shape)
+    # print(df.shape)
 
     # returns the category name and the number of times each value appears 
     # print(df['Categoria do Produto'].value_counts())
@@ -422,8 +476,16 @@ if __name__ == "__main__":
     # save_to_csv("products.csv", data=df_final)
 
     # Example 9: CSV Manipulation, adding column and evaluating feelings of the users with AI
-    df_eval = read_csv(BASE_DIR / "reviews.csv")
-    df_eval_filtered = df_eval[0:][["reviewText"]]
-    df_eval_with_feelings = ai_evalution_of_feelings(df_eval_filtered, client_gemini)
-    df_eval["reviewFeeling"] = df_eval_with_feelings["feeling"]
-    save_to_csv("reviews_with_feelings.csv", data=df_eval)
+    # df_eval = read_csv(BASE_DIR / "reviews.csv")
+    # df_eval_filtered = df_eval[0:][["reviewText"]]
+    # df_eval_with_feelings = ai_evalution_of_feelings(df_eval_filtered, client_gemini)
+    # df_eval["reviewFeeling"] = df_eval_with_feelings["feeling"]
+    # save_to_csv("reviews_with_feelings.csv", data=df_eval)
+
+    # Example 10: CSV Manipulation, evaluate and create categories of the complaints when the review is negative
+    df_complaints = read_csv(BASE_DIR / "reviews_with_feelings.csv")
+    df_negative_reviews = df_complaints[df_complaints["reviewFeeling"] == "negative"][["reviewText"]].copy()
+    df_negative_reviews_with_categories = ai_identify_negative_categories(df_negative_reviews, client_groq)
+    print("\nNegative reviews with identified categories:")
+    print(df_negative_reviews_with_categories)
+    
