@@ -269,37 +269,38 @@ def translate_to_english(df: pd.DataFrame) -> pd.DataFrame:
     df_final.loc[mask, "Name"] = df_final.loc[mask, "Name"].map(mapping.mapper)
     return df_final
 
-def ai_evalution_of_feelings(df: pd.DataFrame, client) -> pd.DataFrame:
-    """Evaluates the feelings of the users based on the product reviews."""
+def ai_analyze_reviews(df: pd.DataFrame, client, analysis_type: str) -> pd.DataFrame:
+    """Generic review analyzer using configurations from mapping.AI_PROMPTS.
+    
+    Args:
+        df: DataFrame with a 'reviewText' column
+        client: Gemini or Groq client
+        analysis_type: Key from mapping.AI_PROMPTS (e.g., 'feelings', 'categories')
+    
+    Returns:
+        DataFrame with the new analysis column added
+    """
+    if analysis_type not in mapping.AI_PROMPTS:
+        print(f"Error: Unknown analysis type '{analysis_type}'. Available: {list(mapping.AI_PROMPTS.keys())}")
+        return df
+    
+    config = mapping.AI_PROMPTS[analysis_type]
     
     if df.empty:
-        print("Error: No data provided to ai_evalution_of_feelings.")
+        print(f"Error: No data provided for '{analysis_type}' analysis.")
         return df
 
     try:
-        # 1. Provide a numbered list to the AI so it can track progress
+        # Build numbered review list
         reviews_numbered = ""
         for i, review in enumerate(df["reviewText"], 1):
             reviews_numbered += f"{i}. {review}\n"
         
-        prompt = f"""You are a professional sentiment analyzer.
-        I will provide {len(df)} customer reviews. 
-        Your task is to classify each one as: positive, neutral, or negative.
-        Rules:
-        1. Return ONLY a numbered list of labels.
-        2. Do not include the original review or any introductory text.
-        3. Match the labels to the review numbers exactly.
-        Input Reviews:
-        {reviews_numbered}
-        Example Output:
-        1. positive
-        2. negative
-        3. neutral
-        ... and so on.
-        Output:"""
+        # Format prompt with count and reviews
+        prompt = config["prompt"].format(count=len(df), reviews=reviews_numbered)
         
+        # Call appropriate AI client
         result = None
-        # Check the type of the client to decide which method to call
         if isinstance(client, genai.Client):
             result = ask_gemini(client, prompt)
         elif isinstance(client, Groq):
@@ -307,76 +308,34 @@ def ai_evalution_of_feelings(df: pd.DataFrame, client) -> pd.DataFrame:
         else:
             print("Error: Unknown client type.")
             return df
+        
         if result:
-            pattern = re.compile(r"\d+\.\s*(positive|neutral|negative)", re.IGNORECASE)
-            feelings = pattern.findall(result)
+            pattern = re.compile(config["regex"], re.IGNORECASE)
+            matches = pattern.findall(result)
             
-            # Ensure the number of feelings matches the number of reviews
-            if len(feelings) == len(df):
-                df["feeling"] = feelings
+            if len(matches) == len(df):
+                df[config["column"]] = matches
             else:
-                print(f"Warning: Received {len(feelings)} feelings for {len(df)} reviews. Mismatch occurred.")
+                print(f"Warning: Received {len(matches)} results for {len(df)} reviews. Mismatch occurred.")
                 print("Raw output from model:")
                 print(result)
         
         return df
         
     except Exception as e:
-        print(f"Error during evaluation of feelings: {e}")
-        return df    
+        print(f"Error during '{analysis_type}' analysis: {e}")
+        return df
+
+
+# Convenience wrappers for backwards compatibility
+def ai_evalution_of_feelings(df: pd.DataFrame, client) -> pd.DataFrame:
+    """Evaluates the feelings of users based on the product reviews."""
+    return ai_analyze_reviews(df, client, "feelings")
+
 
 def ai_identify_negative_categories(df: pd.DataFrame, client) -> pd.DataFrame:
-    """Identifying general categories for negative reviews based on the product reviews."""
-    if df.empty:
-        print("Error: No data provided to ai_identify_negative_categories.")
-        return df
-
-    try:
-
-        reviews_numbered = ""
-        for i, review in enumerate(df["reviewText"], 1):
-            reviews_numbered += f"{i}. {review}\n"    
-        
-        prompt = f"""You are a professional sentiment analyzer.
-        I will provide {len(df)} negative customer reviews. 
-        You have to create general categories for those reviews when they differ.
-        Rules:
-        1. Return ONLY a numbered list of categories.
-        2. Do not include the original review or any introductory text.
-        3. Match the categories to the review numbers exactly.
-        Input Reviews:
-        {reviews_numbered}
-        Example Output:
-        1. category
-        2. category
-        ... and so on.
-        Output:"""
-        
-        result = None
-        # Check the type of the client to decide which method to call
-        if isinstance(client, genai.Client):
-            result = ask_gemini(client, prompt)
-        elif isinstance(client, Groq):
-            result = ask_groq(client, prompt)
-        else:
-            print("Error: Unknown client type.")
-            return df
-        if result:
-            pattern = re.compile(r"\d+\.\s*(.+)", re.IGNORECASE)
-            categories = pattern.findall(result)          
-            # Ensure the number of categories matches the number of reviews
-            if len(categories) == len(df):
-                df["category"] = categories
-            else:
-                print(f"Warning: Received {len(categories)} categories for {len(df)} reviews. Mismatch occurred.")
-                print("Raw output from model:")
-                print(result)
-        
-        return df
-        
-    except Exception as e:
-        print(f"Error during evaluation of feelings: {e}")
-        return df    
+    """Identifies general categories for negative reviews."""
+    return ai_analyze_reviews(df, client, "categories")    
 
 if __name__ == "__main__":
     client_gemini = get_gemini_client()

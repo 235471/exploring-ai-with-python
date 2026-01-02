@@ -40,3 +40,45 @@ mapper = {
     "Batedeira": "Stand Mixer",
     "Sanduicheira": "Sandwich Maker"
 }
+
+# AI Prompt configurations for review analysis
+# Each config contains: prompt template, regex pattern, and output column name
+AI_PROMPTS = {
+    "feelings": {
+        "prompt": """You are a professional sentiment analyzer.
+        I will provide {count} customer reviews. 
+        Your task is to classify each one as: positive, neutral, or negative.
+        Rules:
+        1. Return ONLY a numbered list of labels.
+        2. Do not include the original review or any introductory text.
+        3. Match the labels to the review numbers exactly.
+        Input Reviews:
+        {reviews}
+        Example Output:
+        1. positive
+        2. negative
+        3. neutral
+        ... and so on.
+        Output:""",
+        "regex": r"\d+\.\s*(positive|neutral|negative)",
+        "column": "feeling"
+    },
+    "categories": {
+        "prompt": """You are a professional sentiment analyzer.
+        I will provide {count} negative customer reviews. 
+        You have to create general categories for those reviews when they differ.
+        Rules:
+        1. Return ONLY a numbered list of categories.
+        2. Do not include the original review or any introductory text.
+        3. Match the categories to the review numbers exactly.
+        Input Reviews:
+        {reviews}
+        Example Output:
+        1. category
+        2. category
+        ... and so on.
+        Output:""",
+        "regex": r"\d+\.\s*(.+)",
+        "column": "category"
+    }
+}
