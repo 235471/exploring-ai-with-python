@@ -1,3 +1,9 @@
+"""
+Prompts and mappings configuration.
+Contains AI prompt templates and translation mappings.
+"""
+
+# Product name translations (Portuguese to English)
 mapper = {
     "Notebook Pro 15": "Notebook Pro 15",
     "Smartphone X": "Smartphone X",

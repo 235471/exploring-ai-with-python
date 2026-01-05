@@ -1,16 +1,17 @@
-import os
-from google import genai
-from dotenv import load_dotenv
+"""
+Utility script to list available Gemini models.
+"""
+from clients import get_gemini_client
 
-load_dotenv()
 
 def list_available_models():
-    api_key = os.getenv("GEMINI_API_KEY")
-    client = genai.Client(api_key=api_key)
+    """Lists all available models from the Gemini API."""
+    client = get_gemini_client()
     
     print("Available Models:")
     for model in client.models.list():
         print(f" - {model.name}")
+
 
 if __name__ == "__main__":
     list_available_models()
